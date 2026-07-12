@@ -189,8 +189,11 @@ services:
     container_name: interview-frontend
     depends_on:
       - app
+    volumes:
+      - ./certs:/etc/nginx/certs:ro   # SSL 证书（只读挂载）
     ports:
       - "80:80"
+      - "443:443"
 
 # =========================================
 # 定义 Docker 卷 (Volumes)
