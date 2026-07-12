@@ -124,9 +124,9 @@ services:
   #   - 处理核心业务逻辑（简历分析、模拟面试、RAG）
   # =========================================
   app:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
+    # CI/CD 构建后从 ACR 拉取镜像（不再本地 build）
+    image: ${ACR_REGISTRY:-crpi-tpudmz0tztfynq35.cn-guangzhou.personal.cr.aliyuncs.com}/interview-guide/app:latest
+    pull_policy: always
     container_name: interview-app
     # 依赖管理：确保基础设施准备好后再启动后端
     depends_on:
@@ -163,6 +163,8 @@ services:
       # 这里的变量值来自宿主机的环境变量或 .env 文件
       AI_BAILIAN_API_KEY: ${AI_BAILIAN_API_KEY}
       AI_MODEL: ${AI_MODEL:-qwen3.5-flash}
+      # 限制 Java 堆内存，适配 3.4G 服务器（防止 OOM）
+      JAVA_OPTS: -Xmx768m -Xms512m
       APP_AI_CONFIG_ENCRYPTION_KEY: ${APP_AI_CONFIG_ENCRYPTION_KEY}
 
       # === 面试参数配置 ===
@@ -170,6 +172,8 @@ services:
       APP_INTERVIEW_EVALUATION_BATCH_SIZE: ${APP_INTERVIEW_EVALUATION_BATCH_SIZE:-8}
     ports:
       - "8080:8080"
+    # 内存上限：防止 Java 异常膨胀吃光物理内存
+    mem_limit: 1200m
 
   # =========================================
   # 6. 前端应用服务 (Vue/React + Nginx)
@@ -179,7 +183,9 @@ services:
   #   - 反向代理 API 请求（通常在 Nginx 配置中处理）
   # =========================================
   frontend:
-    build: ./frontend
+    # CI/CD 构建后从 ACR 拉取镜像（不再本地 build）
+    image: ${ACR_REGISTRY:-crpi-tpudmz0tztfynq35.cn-guangzhou.personal.cr.aliyuncs.com}/interview-guide/frontend:latest
+    pull_policy: always
     container_name: interview-frontend
     depends_on:
       - app

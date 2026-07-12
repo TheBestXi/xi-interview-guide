@@ -52,4 +52,5 @@ COPY --from=builder /workspace/app/build/libs/*.jar app.jar
 EXPOSE 8080
 
 # 容器启动时执行的命令
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# 用 sh -c 让 JAVA_OPTS 环境变量生效（默认堆内存 768m，适配 3.4G 服务器）
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

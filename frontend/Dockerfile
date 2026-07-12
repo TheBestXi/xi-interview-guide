@@ -11,10 +11,14 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 # 2. 安装依赖
+# 走国内 npmmirror 源，避免 Docker 构建时访问 npmjs.org 国外源断连 (ECONNRESET)
 # npm install -g pnpm: 全局安装 pnpm 包管理器
 # pnpm install: 安装所有依赖（包括 devDependencies，构建需要 TypeScript、Vite 等）
 # 注意：不使用 --prod 标志，因为构建阶段需要完整的开发环境
-RUN npm install -g pnpm && pnpm install
+RUN npm config set registry https://registry.npmmirror.com \
+    && npm install -g pnpm --registry=https://registry.npmmirror.com \
+    && pnpm config set registry https://registry.npmmirror.com \
+    && pnpm install
 
 # 3. 复制源代码并构建
 COPY . .
