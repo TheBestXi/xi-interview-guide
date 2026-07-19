@@ -206,3 +206,11 @@ public ResumeAnalysisResponse analyzeResume(String resumeText) {
 1. **现在**：把这次改动 push 到 main，看 CI 跑通
 2. **下一步**：main 分支保护 + PR Review 流程
 3. **再下一步**：dev/prod 双环境隔离
+
+---
+
+## 附录：PR 流程验证 ✅
+
+> 本行用于验证分支保护 + PR Review 流程。
+> 操作：docs/test-pr-flow → PR → CI 绿 → 合并 main。
+> 验证时间：2026-07-19
