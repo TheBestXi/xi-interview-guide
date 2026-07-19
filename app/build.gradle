@@ -102,6 +102,9 @@ java {
         languageVersion = JavaLanguageVersion.of(21)
     }
 }
+// Gradle 默认会探测 JAVA_HOME 和系统 JDK 安装位置，
+// foojay-resolver 只是额外提供"远程下载"能力，禁用后不影响 JDK 探测。
+// CI 上 setup-java 会设置 JAVA_HOME，Gradle 能自动找到 JDK 21。
 
 // 全局UTF-8编码配置
 tasks.withType(JavaCompile).configureEach {

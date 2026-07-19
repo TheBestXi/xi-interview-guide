@@ -7,16 +7,26 @@
 
 pluginManagement {
     repositories {
-        maven { url = uri('https://maven.aliyun.com/repository/public/') }
+        // 多源轮询：阿里云挂了就走下面
         maven { url = uri('https://maven.aliyun.com/repository/gradle-plugin/') }
+        maven { url = uri('https://maven.aliyun.com/repository/public/') }
         maven { url = uri('https://maven.aliyun.com/repository/spring-plugin/') }
+        maven { url = uri('https://repo.spring.io/milestone') }
+        maven { url = uri('https://repo.spring.io/snapshot') }
         gradlePluginPortal()
+        mavenCentral()
     }
 }
 
+// CI 上 GitHub Actions 已用 setup-java 装好 JDK 21，
+// 本地开发也已有 JDK 21——不需要 foojay-resolver 自动下载 JDK。
+// 之前阿里云 foojay 镜像 502 直接导致 CI 编译失败，禁用后绕开这个外部依赖。
+
 plugins {
-    // Apply the foojay-resolver plugin to allow automatic download of JDKs
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+    // foojay-resolver 已禁用：
+    // 它的作用是"自动从远程下载 JDK"，但 CI 用 setup-java、本地用 D:\jdk\jdk-21，
+    // JDK 都已就位，不需要远程下载。启用反而会因为阿里云镜像 502 让 CI 挂掉。
+    // id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
 }
 
 rootProject.name = 'interview-guide'
