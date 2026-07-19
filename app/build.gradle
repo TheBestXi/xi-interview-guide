@@ -5,8 +5,15 @@
 
 plugins {
     id 'java'
+    id 'jacoco'
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
+}
+
+// JaCoCo 代码覆盖率配置：跑完 test 自动生成 HTML 报告
+// 报告位置：app/build/reports/jacoco/test/html/index.html
+jacoco {
+    toolVersion = "0.8.12"
 }
 
 group = 'com.interview'
@@ -103,6 +110,17 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // 跑完测试自动生成 JaCoCo 报告
+    finalizedBy jacocoTestReport
+}
+
+// JaCoCo 报告配置：只生成 HTML（人看的），不生成 XML/CSV
+jacocoTestReport {
+    reports {
+        xml.required = false
+        html.required = true
+        csv.required = false
+    }
 }
 
 // 将仓库根目录 .env 注入 bootRun，便于本地加载 AI_BAILIAN_API_KEY 等变量（Gradle 进程默认不读 .env）

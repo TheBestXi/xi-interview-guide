@@ -80,78 +80,90 @@ public class ResumeGradingService {
     
     /**
      * 分析简历并返回评分和建议
-     * 
+     *
      * @param resumeText 简历文本内容
      * @return 分析结果
+     * @throws BusinessException 当 resumeText 为空，或 LLM 调用失败时
      */
     public ResumeAnalysisResponse analyzeResume(String resumeText) {
-        log.info("开始分析简历，文本长度: {} 字符", resumeText.length());
-        
-        try {
-            // 加载系统提示词
-            String systemPrompt = systemPromptTemplate.render();
-            
-            // 加载用户提示词并填充变量
-            Map<String, Object> variables = new HashMap<>();
-            variables.put("resumeText", resumeText);
-            String userPrompt = userPromptTemplate.render(variables);
-            
-            // 添加格式指令到系统提示词
-            String systemPromptWithFormat = systemPrompt + "\n\n" + outputConverter.getFormat();
-            
-            // 调用AI
-            ResumeAnalysisResponseDTO dto;
-            try {
-                ChatClient chatClient = llmProviderRegistry.getDefaultChatClient();
-                dto = structuredOutputInvoker.invoke(
-                    chatClient,
-                    systemPromptWithFormat,
-                    userPrompt,
-                    outputConverter,
-                    ErrorCode.RESUME_ANALYSIS_FAILED,
-                    "简历分析失败：",
-                    "简历分析",
-                    log
-                );
-                log.debug("AI响应解析成功: overallScore={}", dto.overallScore());
-            } catch (Exception e) {
-                log.error("简历分析AI调用失败: {}", e.getMessage(), e);
-                throw new BusinessException(ErrorCode.RESUME_ANALYSIS_FAILED, "简历分析失败：" + e.getMessage());
-            }
-            
-            // 转换为业务对象
-            ResumeAnalysisResponse result = convertToResponse(dto, resumeText);
-            log.info("简历分析完成，总分: {}", result.overallScore());
-            
-            return result;
-            
-        } catch (Exception e) {
-            log.error("简历分析失败: {}", e.getMessage(), e);
-            return createErrorResponse(resumeText, e.getMessage());
+        // null/空防护：避免后续 resumeText.length() 抛 NPE
+        if (resumeText == null || resumeText.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "简历文本不能为空");
         }
+        log.info("开始分析简历，文本长度: {} 字符", resumeText.length());
+
+        // 加载系统提示词
+        String systemPrompt = systemPromptTemplate.render();
+
+        // 加载用户提示词并填充变量
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("resumeText", resumeText);
+        String userPrompt = userPromptTemplate.render(variables);
+
+        // 添加格式指令到系统提示词
+        String systemPromptWithFormat = systemPrompt + "\n\n" + outputConverter.getFormat();
+
+        // 调用 AI
+        ResumeAnalysisResponseDTO dto;
+        try {
+            ChatClient chatClient = llmProviderRegistry.getDefaultChatClient();
+            dto = structuredOutputInvoker.invoke(
+                chatClient,
+                systemPromptWithFormat,
+                userPrompt,
+                outputConverter,
+                ErrorCode.RESUME_ANALYSIS_FAILED,
+                "简历分析失败：",
+                "简历分析",
+                log
+            );
+            log.debug("AI响应解析成功: overallScore={}", dto.overallScore());
+        } catch (BusinessException e) {
+            // 业务异常（含 LLM 失败）：直接向上抛，让调用方知道失败了
+            // 注意：不再吞掉异常返回"0 分伪成功响应"——那会让上游误以为分析成功
+            log.error("简历分析失败: {}", e.getMessage(), e);
+            throw e;
+        } catch (Exception e) {
+            // 兜底：把未知运行时异常包装成业务异常
+            log.error("简历分析出现未知异常: {}", e.getMessage(), e);
+            throw new BusinessException(ErrorCode.RESUME_ANALYSIS_FAILED, "简历分析失败：" + e.getMessage(), e);
+        }
+
+        // 转换为业务对象
+        ResumeAnalysisResponse result = convertToResponse(dto, resumeText);
+        log.info("简历分析完成，总分: {}", result.overallScore());
+
+        return result;
     }
-    
+
     /**
-     * 转换DTO为业务对象
+     * 转换DTO为业务对象。
+     * 对 LLM 可能返回的 null 字段做防御性处理，避免 convertToResponse 内部 NPE。
      */
     private ResumeAnalysisResponse convertToResponse(ResumeAnalysisResponseDTO dto, String originalText) {
-        ScoreDetail scoreDetail = new ScoreDetail(
-            dto.scoreDetail().contentScore(),
-            dto.scoreDetail().structureScore(),
-            dto.scoreDetail().skillMatchScore(),
-            dto.scoreDetail().expressionScore(),
-            dto.scoreDetail().projectScore()
-        );
-        
-        List<Suggestion> suggestions = dto.suggestions().stream()
-            .map(s -> new Suggestion(s.category(), s.priority(), s.issue(), s.recommendation()))
-            .toList();
-        
+        ScoreDetailDTO rawDetail = dto.scoreDetail();
+        // LLM 偶尔会漏字段，用 0 兜底
+        ScoreDetail scoreDetail = rawDetail == null
+            ? new ScoreDetail(0, 0, 0, 0, 0)
+            : new ScoreDetail(
+                rawDetail.contentScore(),
+                rawDetail.structureScore(),
+                rawDetail.skillMatchScore(),
+                rawDetail.expressionScore(),
+                rawDetail.projectScore()
+            );
+
+        List<Suggestion> suggestions = dto.suggestions() == null
+            ? List.of()
+            : dto.suggestions().stream()
+                .map(s -> new Suggestion(s.category(), s.priority(), s.issue(), s.recommendation()))
+                .toList();
+
         return new ResumeAnalysisResponse(
             dto.overallScore(),
             scoreDetail,
             dto.summary(),
-            dto.strengths(),
+            dto.strengths() == null ? List.of() : dto.strengths(),
             suggestions,
             originalText
         );
